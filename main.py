@@ -30,10 +30,9 @@ def search_name(name):
             source = "https://data.occrp.org/api/1/collections/" + \
                 str(res["collection_id"])
             docs = get_entity_docs(res["id"])
+            out["Documents"].append(len(docs))
 
         out["Source"].append(source)
-        # TODO: Decide what to do with documents. Is a list of them useful? Maybe a count?
-        # out["Documents"].append(docs)
 
     return out
 
@@ -41,9 +40,9 @@ def search_name(name):
 def get_entity_docs(entity_id):
     """ Get list of documents tagged with entity """
     docs = []
-    req = "api/1/query"
-    par = {"entity": entity_id}
-    r = api_req(req, par)
+    req = "api/1/query?filter:entities.id=" + entity_id
+    r = api_req(req)
+    print r.url
     for res in r.json()["results"]:
         docs.append("https://data.occrp.org/documents/%s" % res["id"])
     return docs
