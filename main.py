@@ -28,7 +28,8 @@ def get_search_terms(csv_fn, columns, delimiter=',', quotechar='"'):
                 for i in usecols:
                     search_terms.append(row[i])
         print "%s unique search terms found.." % len(search_terms)
-        return set(search_terms)
+        search_terms = filter(None, set(search_terms))
+        return search_terms
     except IOError:
         print "File not found. More information: https://http.cat/404"
         return []
@@ -62,6 +63,7 @@ def search_term(term):
     print "Searching ... %s ..." % term
     meta = None
 
+    term = '"%s"' % term
     docs_with_term = get_search_docs(term)
 
     req = "api/1/entities"
@@ -118,20 +120,19 @@ def get_search_docs(term):
 def make_nice(search_meta, results):
     table = ""
     if search_meta is not None:
-        table = "%s \n" % search_meta
-    table += tabulate(results, headers="keys", tablefmt="psql")
-    table += "\n\n"
+        table = "<p>%s</p>" % search_meta
+    table += tabulate(results, headers="keys", tablefmt="html")
     return table.encode('utf8')
 
 
 def run(filename, *column_names):
     terms = get_search_terms(filename, column_names[0])
-    with open('out', 'w') as f:
+    with open('out.html', 'w') as f:
         for term in terms:
             r = search_term(term)
             f.write(make_nice(r["search_meta"], r["results"]))
 
-    print "Result output to file: `out`"
+    print "Result output to file: `out.html`"
 
 if __name__ == "__main__":
     run(sys.argv[1], sys.argv[2:])
