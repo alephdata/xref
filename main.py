@@ -29,23 +29,23 @@ def api_req(req, params={}, results=[]):
 def search_term(term):
     """ Find entities matching string """
 
+    docs_with_term = get_search_docs(term)
+    meta = "%s: %s documents with this term" % (
+            term, len(docs_with_term))
+
     req = "api/1/entities"
     par = {"q": term, "limit": 1000}
     r = api_req(req, par, [])
-    return aggregate_results(term, r)
+    meta += "; %s entities found:" % len(r)
+    return {"search_meta": meta, "results": aggregate_results(term, r)}
 
 
 def aggregate_results(name, results):
 
-    docs_with_term = get_search_docs(name)
-    input_note = "%s (%s documents contain this term)" % (
-        name, len(docs_with_term))
-    out = {"Input": [input_note], "Entity": [],
-           "Name": [], "Source": [], "Documents": []}
+    out = {"Entity": [], "Name": [], "Source": [], "Documents": []}
 
     for res in results:
         docs = []
-        out["Input"].append("")
         out["Name"].append(res["name"])
         out["Entity"].append(res["id"])
         if "dataset" in res:
@@ -77,12 +77,13 @@ def get_search_docs(term):
     return(api_req(req, par, []))
 
 
-def make_nice(results):
-    table = tabulate(results, headers="keys", tablefmt="psql")
+def make_nice(search_meta, results):
+    table = search_meta + "\n"
+    table += tabulate(results, headers="keys", tablefmt="psql")
     return table.encode('utf8')
 
 # TODO: enter search at cl
-r = search_term("Vladimir Putin")
-# r = search_term("Levan Vasadze")
+# r = search_term("Vladimir Putin")
+r = search_term("Levan Vasadze")
 with open('out', 'w') as f:
-    f.write(make_nice(r))
+    f.write(make_nice(r["search_meta"], r["results"]))
