@@ -4,53 +4,72 @@ import json
 from tabulate import tabulate
 
 
-def api_req(req, params={}):
+def api_req(req, params={}, results=[]):
     base = "https://data.occrp.org/"
     headers = {"Authorization": aleph_key, "Accept": "application/json"}
-    url = base + req
+    params["limit"] = params.get("limit", "1000")
+    params["offset"] = params.get("offset", 0)
+    if req[:23] != "https://data.occrp.org/":
+        url = base + req
+    else:
+        url = req
     r = requests.get(url, params=params, headers=headers)
-    return r
+    res = r.json()
+    for result in res["results"]:
+        results.append(result)
+
+    if res["offset"] + len(res["results"]) < res["total"]:
+        params["offset"] = params["offset"] + int(params["limit"])
+        return api_req(req, params, results)
+
+    else:
+        return results
 
 
 def search_name(name):
     """ Find entities matching name """
+
+    req = "api/1/entities"
+    par = {"q": name, "limit": "60"}
+    r = api_req(req, par, [])
+    return aggregate_results(name, r)
+
+
+def aggregate_results(name, results):
     out = {"Input": [name], "Entity": [],
            "Name": [], "Source": [], "Documents": []}
-    req = "api/1/entities"
-    par = {"q": name}
-    r = api_req(req, par)
-    for res in r.json()["results"]:
+    for res in results:
+        docs = []
         out["Input"].append("")
         out["Name"].append(res["name"])
-        out["Entity"].append(res["api_url"])
-
+        out["Entity"].append(res["id"])
         if "dataset" in res:
-            source = "https://data.occrp.org/api/1/datasets/" + res["dataset"]
+            source = "datsets/%s" % res["dataset"]
         elif "collection_id" in res:
-            source = "https://data.occrp.org/api/1/collections/" + \
-                str(res["collection_id"])
+            source = "collections/%s" % res["collection_id"]
             docs = get_entity_docs(res["id"])
-            out["Documents"].append(len(docs))
-
+        out["Documents"].append(len(docs) or "")
         out["Source"].append(source)
-
     return out
 
 
 def get_entity_docs(entity_id):
     """ Get list of documents tagged with entity """
     docs = []
-    req = "api/1/query?filter:entities.id=" + entity_id
-    r = api_req(req)
-    print r.url
-    for res in r.json()["results"]:
-        docs.append("https://data.occrp.org/documents/%s" % res["id"])
+    req = "api/1/query"
+    par = {"filter:entities.id": entity_id, "limit": 1000}
+    r = api_req(req, par, [])
+    for res in r:
+        docs.append(res["id"])
     return docs
 
 
 def make_nice(results):
-    return tabulate(results, headers="keys", tablefmt="psql")
+    table = tabulate(results, headers="keys", tablefmt="psql")
+    return table.encode('utf8')
 
 # TODO: enter search at cl
-r = search_name("Levan Vasadze")
-print make_nice(r)
+r = search_name("Vladimir Putin")
+# r = search_name("Levan Vasadze")
+with open('out', 'w') as f:
+    f.write(make_nice(r))
