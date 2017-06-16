@@ -24,7 +24,7 @@ def get_search_terms(csv_fn, columns, delimiter=',', quotechar='"'):
         for row in csvreader:
             for i in usecols:
                 search_terms.append(row[i])
-    return search_terms
+    return set(search_terms)
 
 
 def api_req(req, params={}, results=[]):
