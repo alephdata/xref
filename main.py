@@ -60,7 +60,6 @@ def api_req(req, params={}, results=[]):
 def search_term(term):
     """ Find entities matching string """
 
-    print "Searching ... %s ..." % term
     meta = None
 
     term = '"%s"' % term
@@ -71,8 +70,8 @@ def search_term(term):
     r = api_req(req, par, [])
 
     if len(docs_with_term) > 0 or len(r) > 0:
-        meta = "%s: %s documents with this term; %s entities found" % (
-            term, len(docs_with_term), len(r))
+        meta = '%s: <a href="https://data.occrp.org/documents?q=%s">%s documents with this term</a>; %s entities found' % (
+            term, term, len(docs_with_term), len(r))
 
     print "Found %s documents and %s entities." % (len(docs_with_term), len(r))
 
@@ -81,18 +80,22 @@ def search_term(term):
 
 def aggregate_results(name, results):
     if len(results) > 0:
-        out = {"Entity": [], "Name": [], "Source": [], "Documents": []}
+        out = {"Entity": [], "Source": []}
 
         for res in results:
             docs = []
-            out["Name"].append(res["name"])
-            out["Entity"].append(res["id"])
             if "dataset" in res:
-                source = "datsets/%s" % res["dataset"]
+                source = '<a href="https://data.occrp.org/datsets/%s">%s</a>' % (
+                    res["dataset"], res["dataset"])
             elif "collection_id" in res:
-                source = "collections/%s" % res["collection_id"]
+                source = '<a href="https://data.occrp.org/datsets/%s">%s</a>' % (
+                    res["collection_id"], res["collection_id"])
                 docs = get_entity_docs(res["id"])
-            out["Documents"].append(len(docs) or "")
+
+            entity_string = '<a href="https://data.occrp.org/entities/%s">%s</a>' % (res["id"], res["name"])
+            if(len(docs)) > 0:
+                entity_string += ' (<a href="https://data.occrp.org/documents?filter:entities.id=%s">%s tagged documents</a>)' % (res["id"], len(docs))
+            out["Entity"].append(entity_string)
             out["Source"].append(source)
 
         return out
@@ -122,13 +125,15 @@ def make_nice(search_meta, results):
     if search_meta is not None:
         table = "<p>%s</p>" % search_meta
     table += tabulate(results, headers="keys", tablefmt="html")
+
     return table.encode('utf8')
 
 
 def run(filename, *column_names):
     terms = get_search_terms(filename, column_names[0])
     with open('out.html', 'w') as f:
-        for term in terms:
+        for i, term in enumerate(terms):
+            print "Searching (%s/%s) ... %s ..." % (i, len(terms), term)
             r = search_term(term)
             f.write(make_nice(r["search_meta"], r["results"]))
 
