@@ -117,30 +117,51 @@ def html_start():
     <link type="text/css" href="https://data.occrp.org/static/assets/aleph.css" rel="stylesheet" />
   </head>
   <body id="page"><div class="help screen">
-    <h1>Crossreferencing results</h1>"""
+    <h1>Crossreferencing results</h1>
+    <table class="table">
+      <thead><tr>
+        <th>Input</th>
+        <th>Documents</th>
+        <th colspan="3">Entities</th>
+      </tr></thead>
+      <tbody>"""
 
 
 def html_end():
     return """
-    </div></body>
+      </tbody>
+    </table>
+  </div></body>
 </html>"""
 
 
 def html_results(results):
     html = """
-    <p>Searched for <strong>%s</strong>, found: <a href="https://data.occrp.org/documents?q=%s">%s documents</a> and <a href="https://data.occrp.org/entities?q=%s">%s entities</a>.</p>
+      <tr>
+        <td><strong>%s</strong></td>
+        <td><a href="https://data.occrp.org/documents?q=%s">%s</a></td>
+        <td colspan="3"><a href="https://data.occrp.org/entities?q=%s">%s</a></td>
+      </tr>
     """ % (results["input"], results["input"], results["docs"], results["input"], len(results["entities"]))
     if(len(results["entities"]) > 0):
-        html += """
-    <ul>"""
         for entity in results['entities']:
             html += """
-      <li>
-        <a href="https://data.occrp.org/entities/%s">%s</a> from <a href="%s">%s</a> (<a href="https://data.occrp.org/documents?filter:entities.id=%s">%s tagged documents</a>)
-      </li>
-            """ % (entity["id"], entity["name"], entity["source"], entity["source"], entity["id"], entity["docs"])
+      <tr>
+        <td></td>
+        <td></td>
+        <td><a href="https://data.occrp.org/entities/%s">%s</a></td>
+        <td><a href="%s">%s</a></td>
+        <td>""" % (entity["id"], entity["name"], entity["source"], entity["source"])
+
+            if entity["docs"] > 0:
+                html += """<a href="https://data.occrp.org/documents?filter:entities.id=%s">%s documents</a>""" % (
+                    entity["id"], entity["docs"])
+
+            html += """
+        </td>
+      </tr>"""
         html += """
-    </ul>"""
+    </td></tr>"""
 
     return html.encode('utf8')
 
