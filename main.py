@@ -85,7 +85,7 @@ def aggregate_results(results):
                 docs = get_entity_docs(res["id"])
 
             out.append({"name": res["name"], "id": res[
-                       "id"], "source": source, "docs": len(docs)})
+                       "id"], "source": source, "docs": len(docs), "meta": res})
 
         return out
     return {}
@@ -122,7 +122,7 @@ def html_start():
       <thead><tr>
         <th>Input</th>
         <th>Documents</th>
-        <th colspan="3">Entities</th>
+        <th colspan="5">Entities</th>
       </tr></thead>
       <tbody>"""
 
@@ -140,10 +140,21 @@ def html_results(results):
       <tr>
         <td><strong>%s</strong></td>
         <td><a href="https://data.occrp.org/documents?q=%s">%s</a></td>
-        <td colspan="3"><a href="https://data.occrp.org/entities?q=%s">%s</a></td>
+        <td colspan="5"><a href="https://data.occrp.org/entities?q=%s">%s</a></td>
       </tr>
     """ % (results["input"], results["input"], results["docs"], results["input"], len(results["entities"]))
     if(len(results["entities"]) > 0):
+        html += """
+      <tr>
+        <th></th>
+        <th></th>
+        <th>Entity</th>
+        <th>Source</th>
+        <th>Documents</th>
+        <th>Countries</th>
+        <th>Dates</th>
+      </tr>
+        """
         for entity in results['entities']:
             html += """
       <tr>
@@ -154,11 +165,20 @@ def html_results(results):
         <td>""" % (entity["id"], entity["name"], entity["source"], entity["source"])
 
             if entity["docs"] > 0:
-                html += """<a href="https://data.occrp.org/documents?filter:entities.id=%s">%s documents</a>""" % (
+                html += """<a href="https://data.occrp.org/documents?filter:entities.id=%s">%s</a>""" % (
                     entity["id"], entity["docs"])
 
             html += """
-        </td>
+        </td><td>"""
+            if len(entity["meta"].get("countries", [])) > 0:
+                html += ", ".join(entity["meta"]["countries"])
+            html += """
+        </td><td>"""
+            if len(entity["meta"].get("dates", [])) > 0:
+                html += ", ".join(entity["meta"]["dates"])
+            html += """
+        </td><td>"""
+            html += """
       </tr>"""
         html += """
     </td></tr>"""
