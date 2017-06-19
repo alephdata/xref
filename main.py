@@ -2,7 +2,6 @@ import sys
 import requests
 import json
 import csv
-from tabulate import tabulate
 from key import aleph_key
 
 
@@ -27,8 +26,8 @@ def get_search_terms(csv_fn, columns, delimiter=',', quotechar='"'):
             for row in csvreader:
                 for i in usecols:
                     search_terms.append(row[i])
-        print "%s unique search terms found.." % len(search_terms)
         search_terms = filter(None, set(search_terms))
+        print "%s unique search terms found.." % len(search_terms)
         return search_terms
     except IOError:
         print "File not found. More information: https://http.cat/404"
@@ -60,8 +59,6 @@ def api_req(req, params={}, results=[]):
 def search_term(term):
     """ Find entities matching string """
 
-    meta = None
-
     term = '"%s"' % term
     docs_with_term = get_search_docs(term)
 
@@ -69,34 +66,26 @@ def search_term(term):
     par = {"q": term, "limit": 1000}
     r = api_req(req, par, [])
 
-    if len(docs_with_term) > 0 or len(r) > 0:
-        meta = '%s: <a href="https://data.occrp.org/documents?q=%s">%s documents with this term</a>; %s entities found' % (
-            term, term, len(docs_with_term), len(r))
-
     print "Found %s documents and %s entities." % (len(docs_with_term), len(r))
 
-    return {"search_meta": meta, "results": aggregate_results(term, r)}
+    return {"input": term, "docs": len(docs_with_term), "entities": aggregate_results(r)}
 
 
-def aggregate_results(name, results):
+def aggregate_results(results):
     if len(results) > 0:
-        out = {"Entity": [], "Source": []}
+        out = []
 
         for res in results:
             docs = []
             if "dataset" in res:
-                source = '<a href="https://data.occrp.org/datsets/%s">%s</a>' % (
-                    res["dataset"], res["dataset"])
+                source = "https://data.occrp.org/datsets/%s" % res["dataset"]
             elif "collection_id" in res:
-                source = '<a href="https://data.occrp.org/datsets/%s">%s</a>' % (
-                    res["collection_id"], res["collection_id"])
+                source = "https://data.occrp.org/collections/%s" % res[
+                    "collection_id"]
                 docs = get_entity_docs(res["id"])
 
-            entity_string = '<a href="https://data.occrp.org/entities/%s">%s</a>' % (res["id"], res["name"])
-            if(len(docs)) > 0:
-                entity_string += ' (<a href="https://data.occrp.org/documents?filter:entities.id=%s">%s tagged documents</a>)' % (res["id"], len(docs))
-            out["Entity"].append(entity_string)
-            out["Source"].append(source)
+            out.append({"name": res["name"], "id": res[
+                       "id"], "source": source, "docs": len(docs)})
 
         return out
     return {}
@@ -120,27 +109,53 @@ def get_search_docs(term):
     return(api_req(req, par, []))
 
 
-def make_nice(search_meta, results):
-    table = ""
-    if search_meta is not None:
-        table = "<p>%s</p>" % search_meta
-    table += tabulate(results, headers="keys", tablefmt="html")
+def html_start():
+    return """<!doctype html>
+<html>
+  <head>
+    <title>alpeh xref</title>
+    <link type="text/css" href="https://data.occrp.org/static/assets/aleph.css" rel="stylesheet" />
+  </head>
+  <body id="page"><div class="help screen">
+    <h1>Crossreferencing results</h1>"""
 
-    return table.encode('utf8')
+
+def html_end():
+    return """
+    </div></body>
+</html>"""
+
+
+def html_results(results):
+    html = """
+    <p>Searched for <strong>%s</strong>, found: <a href="https://data.occrp.org/documents?q=%s">%s documents</a> and <a href="https://data.occrp.org/entities?q=%s">%s entities</a>.</p>
+    """ % (results["input"], results["input"], results["docs"], results["input"], len(results["entities"]))
+    if(len(results["entities"]) > 0):
+        html += """
+    <ul>"""
+        for entity in results['entities']:
+            html += """
+      <li>
+        <a href="https://data.occrp.org/entities/%s">%s</a> from <a href="%s">%s</a> (<a href="https://data.occrp.org/documents?filter:entities.id=%s">%s tagged documents</a>)
+      </li>
+            """ % (entity["id"], entity["name"], entity["source"], entity["source"], entity["id"], entity["docs"])
+        html += """
+    </ul>"""
+
+    return html.encode('utf8')
 
 
 def run(filename, *column_names):
     terms = get_search_terms(filename, column_names[0])
     with open('out.html', 'w') as f:
+        f.write(html_start())
         for i, term in enumerate(terms):
             print "Searching (%s/%s) ... %s ..." % (i, len(terms), term)
             r = search_term(term)
-            f.write(make_nice(r["search_meta"], r["results"]))
+            f.write(html_results(r))
+        f.write(html_end())
 
     print "Result output to file: `out.html`"
 
 if __name__ == "__main__":
     run(sys.argv[1], sys.argv[2:])
-
-# TODO: option to list documents with search term
-# TODO: option to list documents for found entities
