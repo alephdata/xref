@@ -78,7 +78,7 @@ def aggregate_results(results):
         for res in results:
             docs = []
             if "dataset" in res:
-                source = "https://data.occrp.org/datsets/%s" % res["dataset"]
+                source = "https://data.occrp.org/entities?filter:dataset=%s" % res["dataset"]
             elif "collection_id" in res:
                 source = "https://data.occrp.org/collections/%s" % res[
                     "collection_id"]
@@ -113,6 +113,7 @@ def html_start():
     return """<!doctype html>
 <html>
   <head>
+    <meta charset="utf-8">
     <title>alpeh xref</title>
     <link type="text/css" href="https://data.occrp.org/static/assets/aleph.css" rel="stylesheet" />
   </head>
@@ -143,7 +144,7 @@ def html_results(results):
         <td colspan="5"><a href="https://data.occrp.org/entities?q=%s">%s</a></td>
       </tr>
     """ % (results["input"], results["input"], results["docs"], results["input"], len(results["entities"]))
-    if(len(results["entities"]) > 0):
+    if len(results["entities"]) > 0:
         html += """
       <tr>
         <th></th>
@@ -188,12 +189,18 @@ def html_results(results):
 
 def run(filename, *column_names):
     terms = get_search_terms(filename, column_names[0])
+    r = []
+    for i, term in enumerate(terms):
+        print "Searching (%s/%s) ... %s ..." % (i, len(terms), term)
+        r.append(search_term(term))
+
+    # Sort results by entities then documents found
+    r = sorted(r, key=lambda r: (len(r["entities"]), r["docs"]), reverse=True)
+
     with open('out.html', 'w') as f:
         f.write(html_start())
-        for i, term in enumerate(terms):
-            print "Searching (%s/%s) ... %s ..." % (i, len(terms), term)
-            r = search_term(term)
-            f.write(html_results(r))
+        for res in r:
+            f.write(html_results(res))
         f.write(html_end())
 
     print "Result output to file: `out.html`"
