@@ -34,7 +34,12 @@ def get_search_terms(csv_fn, columns, delimiter=',', quotechar='"'):
         return []
 
 
-def api_req(req, params={}, results=[]):
+def api_req(req, params=None, results=None):
+    if results is None:
+        results = []
+    if params is None:
+        params = {}
+
     base = "https://data.occrp.org/"
     headers = {"Authorization": aleph_key, "Accept": "application/json"}
     params["limit"] = params.get("limit", "1000")
@@ -45,15 +50,16 @@ def api_req(req, params={}, results=[]):
         url = req
     r = requests.get(url, params=params, headers=headers)
     res = r.json()
-    for result in res["results"]:
-        results.append(result)
-
-    if res["offset"] + len(res["results"]) < res["total"]:
-        params["offset"] = params["offset"] + int(params["limit"])
-        return api_req(req, params, results)
-
+    if res.get("results") is not None:
+        for result in res["results"]:
+            results.append(result)
+        if res["offset"] + len(res["results"]) < res["total"]:
+            params["offset"] = params["offset"] + int(params["limit"])
+            return api_req(req, params, results)
     else:
-        return results
+        results.append(res)
+
+    return results
 
 
 def search_term(term):
@@ -78,14 +84,16 @@ def aggregate_results(results):
         for res in results:
             docs = []
             if "dataset" in res:
-                source = "https://data.occrp.org/entities?filter:dataset=%s" % res["dataset"]
+                source = "https://data.occrp.org/entities?filter:dataset=%s" % res[
+                    "dataset"]
+                source_name = res["dataset"]
             elif "collection_id" in res:
-                source = "https://data.occrp.org/collections/%s" % res[
-                    "collection_id"]
+                source = "https://data.occrp.org/collections/%s" % res["collection_id"]
+                source_name = None
                 docs = get_entity_docs(res["id"])
 
             out.append({"name": res["name"], "id": res[
-                       "id"], "source": source, "docs": len(docs), "meta": res})
+                       "id"], "source": source, "source_name": source_name, "docs": len(docs), "meta": res})
 
         return out
     return {}
@@ -107,6 +115,13 @@ def get_search_docs(term):
     req = "api/1/query"
     par = {"q": term, "limit": 1000}
     return(api_req(req, par, []))
+
+
+def label_collection(collection_id):
+    req = "api/1/collections/%s" % collection_id
+    par = {"limit": 1000}
+    r = api_req(req, par, [])[0]
+    return r.get("label", "Untitled")
 
 
 def html_start():
@@ -163,7 +178,7 @@ def html_results(results):
         <td></td>
         <td><a href="https://data.occrp.org/entities/%s">%s</a></td>
         <td><a href="%s">%s</a></td>
-        <td>""" % (entity["id"], entity["name"], entity["source"], entity["source"])
+        <td>""" % (entity["id"], entity["name"], entity["source"], entity["source_name"])
 
             if entity["docs"] > 0:
                 html += """<a href="https://data.occrp.org/documents?filter:entities.id=%s">%s</a>""" % (
@@ -197,9 +212,18 @@ def run(filename, *column_names):
     # Sort results by entities then documents found
     r = sorted(r, key=lambda r: (len(r["entities"]), r["docs"]), reverse=True)
 
+    sources = {}
+
     with open('out.html', 'w') as f:
         f.write(html_start())
         for res in r:
+            
+            for entity in res["entities"]:
+                if entity["source_name"] is None:
+                    if sources.get(entity["source"], None) is None:
+                        sources[entity["source"]] = label_collection(entity["meta"]["collection_id"])
+                    entity["source_name"] = sources[entity["source"]]
+
             f.write(html_results(res))
         f.write(html_end())
 
